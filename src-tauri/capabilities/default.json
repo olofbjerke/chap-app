@@ -19,6 +19,11 @@
                     "name": "open",
                     "cmd": "open",
                     "args": true
+                },
+                {
+                    "name": "mv",
+                    "cmd": "mv",
+                    "args": true
                 }
             ]
         },
