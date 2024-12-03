@@ -184,6 +184,7 @@ function EditableChapter({ chapter }: { chapter: Chapter }) {
         function focusInputOnMount() {
             if (chapter == chapters.value.at(-1)) {
                 inputRef.current?.focus();
+                inputRef.current?.select();
             }
         },
         [chapter]
