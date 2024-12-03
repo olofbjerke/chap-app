@@ -1,31 +1,31 @@
-import { signal, batch, computed, Signal, effect } from "@preact/signals";
+import { signal, batch, computed, Signal } from "@preact/signals";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { createRef } from "preact";
 import { join, tempDir } from "@tauri-apps/api/path";
 import { writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
 import { open } from "@tauri-apps/plugin-dialog";
+import { sessionSignal } from "./utils";
 
 let startId = Math.round(Math.random() * 1000_000);
 export const videoPlayer = createRef<HTMLVideoElement>();
 
-export const currentPath = signal(sessionStorage.getItem("currentPath") || "");
-export const metadata = signal(sessionStorage.getItem("metadata") || "");
-export const metadataRaw = signal(sessionStorage.getItem("metadataRaw") || "");
-export const debug = signal(false);
-
-const savedChapters: { time: number; title: string }[] = sessionStorage.getItem("chapters")
-    ? JSON.parse(sessionStorage.getItem("chapters")!)
-    : [];
-
-export const chapters = signal<Chapter[]>(
-    savedChapters.map((chap) => {
-        return {
-            time: chap.time,
-            title: signal(chap.title),
-            id: id(),
-        };
-    })
+export const currentPath = sessionSignal("currentPath", "");
+export const metadata = sessionSignal("metadata", "");
+export const metadataRaw = sessionSignal("metadataRaw", "");
+export const debug = sessionSignal("debug", false);
+export const chapters = sessionSignal<Chapter[]>(
+    "chapters",
+    [],
+    (savedChapters: { time: number; title: string }[]) => {
+        return savedChapters.map((chap) => {
+            return {
+                time: chap.time,
+                title: signal(chap.title),
+                id: id(),
+            };
+        });
+    }
 );
 
 export let path = computed(() => {
@@ -52,14 +52,6 @@ export const newMetadata = computed(() => {
     });
 
     return metadata.value + ffmpegFormattedChapters.join("");
-});
-
-effect(() => {
-    /* store current path in local storage */
-    sessionStorage.setItem("currentPath", currentPath.value);
-    sessionStorage.setItem("metadata", metadata.value);
-    sessionStorage.setItem("metadataRaw", metadataRaw.value);
-    sessionStorage.setItem("chapters", JSON.stringify(chapters.value));
 });
 
 function id() {
