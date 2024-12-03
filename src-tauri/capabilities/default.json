@@ -35,6 +35,11 @@
         "fs:allow-home-meta-recursive",
         "fs:scope-home-recursive",
         "fs:scope-home-index",
+        "fs:allow-temp-read-recursive",
+        "fs:allow-temp-write-recursive",
+        "fs:allow-temp-meta-recursive",
+        "fs:scope-temp-recursive",
+        "fs:scope-temp-index",
         "fs:write-all"
     ]
 }

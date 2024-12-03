@@ -1,15 +1,19 @@
 import { signal, batch, computed, Signal, effect } from "@preact/signals";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { createRef } from "preact";
-import { join, homeDir, tempDir } from "@tauri-apps/api/path";
+import { join, tempDir } from "@tauri-apps/api/path";
 import { writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
 import { open } from "@tauri-apps/plugin-dialog";
 
+let startId = Math.round(Math.random() * 1000_000);
 export const videoPlayer = createRef<HTMLVideoElement>();
 
 export const currentPath = signal(sessionStorage.getItem("currentPath") || "");
 export const metadata = signal(sessionStorage.getItem("metadata") || "");
+export const metadataRaw = signal(sessionStorage.getItem("metadataRaw") || "");
+export const debug = signal(false);
+
 const savedChapters: { time: number; title: string }[] = sessionStorage.getItem("chapters")
     ? JSON.parse(sessionStorage.getItem("chapters")!)
     : [];
@@ -37,14 +41,27 @@ export const sortedChapters = computed(() => {
     return chapters.value.slice().sort((a, b) => a.time - b.time);
 });
 
+export const newMetadata = computed(() => {
+    let c = sortedChapters.value;
+    let ffmpegFormattedChapters = c.map((chapter, i) => {
+        const startTime = Math.floor(chapter.time * 1000);
+        let nextChapter = c[i + 1]?.time ?? videoPlayer.current?.duration;
+
+        const endTime = nextChapter ? Math.floor((nextChapter - 1) * 1000) : Infinity;
+        return toChapter(startTime, endTime, chapter.title.value);
+    });
+
+    return metadata.value + ffmpegFormattedChapters.join("");
+});
+
 effect(() => {
     /* store current path in local storage */
     sessionStorage.setItem("currentPath", currentPath.value);
     sessionStorage.setItem("metadata", metadata.value);
+    sessionStorage.setItem("metadataRaw", metadataRaw.value);
     sessionStorage.setItem("chapters", JSON.stringify(chapters.value));
 });
 
-let startId = Math.round(Math.random() * 1000_000);
 function id() {
     return "id-" + startId++;
 }
@@ -58,6 +75,49 @@ export function addChapterAtCurrentTime() {
 
     const newList = [...chapters.value, latest];
     chapters.value = newList;
+}
+
+export async function openFileDialog() {
+    const file = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: "mp4", extensions: ["mp4"] }],
+    });
+
+    if (!file) {
+        return;
+    }
+
+    loadFile(file);
+}
+
+export async function loadFile(file: string) {
+    let metadataOutput = await cmd("ffmpeg", ["-i", file, "-f", "ffmetadata", "-"]);
+
+    batch(() => {
+        metadataRaw.value = metadataOutput.stdout;
+        metadata.value = stripChaptersFromFFMpegMetadata(metadataOutput.stdout);
+        currentPath.value = file;
+        chapters.value = parseChaptersFromFFMpegMetadata(metadataOutput.stdout);
+    });
+}
+
+function stripChaptersFromFFMpegMetadata(metadata: string): string {
+    if (!metadata.includes("[CHAPTER]")) {
+        return metadata;
+    }
+
+    let chapterIndex = metadata.indexOf("[CHAPTER]");
+    let strippedResult = metadata.substring(0, chapterIndex);
+    let rest = metadata.substring(chapterIndex).replaceAll("[CHAPTER]", "");
+
+    let otherMarkers = rest.match(/\[(\w*)\]/g);
+
+    if (otherMarkers) {
+        return strippedResult + rest.substring(rest.indexOf(otherMarkers[0]));
+    }
+
+    return strippedResult;
 }
 
 function parseChaptersFromFFMpegMetadata(metadata: string): Chapter[] {
@@ -106,71 +166,32 @@ function parseChaptersFromFFMpegMetadata(metadata: string): Chapter[] {
     });
 }
 
-export async function openFileDialog() {
-    const file = await open({
-        multiple: false,
-        directory: false,
-        filters: [{ name: "mp4", extensions: ["mp4"] }],
-    });
-
-    if (!file) {
-        return;
-    }
-
-    loadFile(file);
-}
-
-export async function loadFile(file: string) {
-    let metadataOutput = await cmd("ffmpeg", ["-iassadasdas", file, "-f", "ffmetadata", "-"]);
-
-    batch(() => {
-        metadata.value = metadataOutput.stdout;
-        currentPath.value = file;
-        chapters.value = parseChaptersFromFFMpegMetadata(metadataOutput.stdout);
-    });
-}
-
 export async function save() {
-    let c = sortedChapters.value;
-    let ffmpegFormattedChapters = c.map((chapter, i) => {
-        const startTime = Math.floor(chapter.time * 1000);
-        let nextChapter = c[i + 1]?.time ?? videoPlayer.current?.duration;
-
-        const endTime = nextChapter ? Math.floor((nextChapter - 1) * 1000) : Infinity;
-        return toChapter(startTime, endTime, chapter.title.value);
-    });
-
-    let metadataStr = metadata.value + ffmpegFormattedChapters.join("");
-
     let encoder = new TextEncoder();
-    let data = encoder.encode(metadataStr);
-    await writeFile("ffmetadata.ffmetadata", data, { baseDir: BaseDirectory.Temp });
+    let data = encoder.encode(newMetadata.value);
+    const metadataFileName = "chap-app-ffmetadata.ffmetadata";
+    await writeFile(metadataFileName, data, { baseDir: BaseDirectory.Temp });
 
-    let metadataPath = await join(await tempDir(), "ffmetadata.ffmetadata");
-    let tempOutputPath = await join(await tempDir(), "output.mp4");
-    const outputFile = currentPath.value.replace(".mp4", ".chapters.mp4");
-    let command = Command.create("ffmpeg", [
-        "-y",
-        "-i",
-        currentPath.value,
+    let i = Math.round(Math.random() * 1000_000);
+    let metadataPath = await join(await tempDir(), metadataFileName);
+    let tempOutputPath = await join(await tempDir(), `chap-app-output-${i}.mp4`);
+
+    await cmd("ffmpeg", [
         "-i",
         metadataPath,
-        "-map_metadata",
+        "-i",
+        currentPath.value,
+        "-map",
         "1",
+        "-map_metadata",
+        "0",
         "-codec",
         "copy",
         tempOutputPath,
     ]);
 
-    console.log(tempOutputPath);
-
-    command.on("error", (data) => {
-        console.error(data);
-    });
-
-    await command.execute();
-
-    await Command.create("open", ["-R", outputFile]).execute();
+    await cmd("mv", ["-f", tempOutputPath, currentPath.value]);
+    await cmd("open", ["-R", currentPath.value]);
 }
 
 function toChapter(start: number, end: number, title: string) {

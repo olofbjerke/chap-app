@@ -2,7 +2,18 @@ import { useEffect, useRef } from "preact/hooks";
 import { RefObject } from "preact";
 
 import "./App.css";
-import { addChapterAtCurrentTime, Chapter, chapters, currentPath, path, sortedChapters, videoPlayer } from "./model";
+import {
+    addChapterAtCurrentTime,
+    Chapter,
+    chapters,
+    currentPath,
+    debug,
+    metadataRaw,
+    newMetadata,
+    path,
+    sortedChapters,
+    videoPlayer,
+} from "./model";
 
 const expectedFramerate = 30;
 
@@ -25,6 +36,11 @@ export default function App() {
 
             if (ev.key === "a") {
                 addChapterAtCurrentTime();
+                return;
+            }
+            
+            if (ev.key === "d") {
+                debug.value = !debug.value;
                 return;
             }
 
@@ -77,9 +93,23 @@ export default function App() {
                             </button>
                         ))}
                     </section>
+                    {debug.value && <DebugPanel />}
                 </div>
             </main>
         </>
+    );
+}
+
+function DebugPanel() {
+    return (
+        <div
+            style={
+                "display: flex; flex-direction: row; gap: 10px; width: 100%; align-items: center; justify-content: space-between;"
+            }
+        >
+            <textarea style="flex-grow:1; height: 400px; resize: none">{metadataRaw}</textarea>
+            <textarea style="flex-grow:1; height: 400px; resize: none">{newMetadata}</textarea>
+        </div>
     );
 }
 
