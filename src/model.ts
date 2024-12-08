@@ -8,7 +8,6 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { sessionSignal } from "./utils";
 import { basename } from "@tauri-apps/api/path";
 
-let startId = Math.round(Math.random() * 1000_000);
 export const videoPlayer = createRef<HTMLVideoElement>();
 
 export const currentPath = sessionSignal("currentPath", "");
@@ -18,6 +17,7 @@ export const videoTitle = sessionSignal("videoTitle", "");
 export const date = sessionSignal("date", "");
 export const debug = sessionSignal("debug", false);
 
+let startId = 0;
 export const chapters = sessionSignal<Chapter[]>("chapters", [], (savedChapters: { time: number; title: string }[]) => {
     return savedChapters.map((chap) => {
         return {

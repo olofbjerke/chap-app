@@ -12,6 +12,7 @@ export function initMenu() {
         }
     });
 
+    /** Quick and dirty way to modify the default menu bar to support opening and saving files */
     async function buildAppMenu() {
         let menu = await Menu.default();
 

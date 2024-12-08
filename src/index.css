@@ -1,9 +1,0 @@
-.bg {
-    inset: 0;
-    position: absolute;
-    background-image: url(assets/abstract.jpg);
-    background-size: cover;
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.05;
-}

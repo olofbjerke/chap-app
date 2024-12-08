@@ -38,9 +38,18 @@ html {
     justify-content: stretch;
     display: flex;
     flex-direction: row;
-    /* background: #303a44; */
     align-items: flex-start;
     background: linear-gradient(var(--c2), var(--bg));
+}
+
+.bg {
+  inset: 0;
+  position: absolute;
+  background-image: url(assets/abstract.jpg);
+  background-size: cover;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.05;
 }
 
 video {
@@ -75,7 +84,6 @@ button {
     color: #0f0f0f;
     background-color: var(--c4);
     transition: border-color 0.25s;
-    /* box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2); */
 }
 
 input {
@@ -89,29 +97,10 @@ button {
 button:hover {
     border-color: #396cd8;
 }
+
 button:active {
     border-color: #396cd8;
     background-color: #e8e8e8;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        color: #f6f6f6;
-        background-color: #2f2f2f;
-    }
-
-    a:hover {
-        color: #24c8db;
-    }
-
-    input,
-    button {
-        color: #ffffff;
-        background-color: #0f0f0f98;
-    }
-    button:active {
-        background-color: #0f0f0f69;
-    }
 }
 
 main {
