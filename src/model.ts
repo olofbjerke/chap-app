@@ -6,6 +6,7 @@ import { writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
 import { open } from "@tauri-apps/plugin-dialog";
 import { sessionSignal } from "./utils";
+import { basename } from "@tauri-apps/api/path";
 
 let startId = Math.round(Math.random() * 1000_000);
 export const videoPlayer = createRef<HTMLVideoElement>();
@@ -13,20 +14,19 @@ export const videoPlayer = createRef<HTMLVideoElement>();
 export const currentPath = sessionSignal("currentPath", "");
 export const metadata = sessionSignal("metadata", "");
 export const metadataRaw = sessionSignal("metadataRaw", "");
+export const videoTitle = sessionSignal("videoTitle", "");
+export const date = sessionSignal("date", "");
 export const debug = sessionSignal("debug", false);
-export const chapters = sessionSignal<Chapter[]>(
-    "chapters",
-    [],
-    (savedChapters: { time: number; title: string }[]) => {
-        return savedChapters.map((chap) => {
-            return {
-                time: chap.time,
-                title: signal(chap.title),
-                id: id(),
-            };
-        });
-    }
-);
+
+export const chapters = sessionSignal<Chapter[]>("chapters", [], (savedChapters: { time: number; title: string }[]) => {
+    return savedChapters.map((chap) => {
+        return {
+            time: chap.time,
+            title: signal(chap.title),
+            id: id(),
+        };
+    });
+});
 
 export let path = computed(() => {
     let p = currentPath.value;
@@ -51,7 +51,24 @@ export const newMetadata = computed(() => {
         return toChapter(startTime, endTime, chapter.title.value);
     });
 
-    return metadata.value + ffmpegFormattedChapters.join("");
+    let m = metadata.value;
+
+    if (m.includes("title=")) {
+        m = m.replace(/title=.*/, "title=" + videoTitle.value);
+    } else {
+        m += "\ntitle=" + videoTitle.value + "\n";
+    }
+
+    const d = date.value;
+    if (d) {
+        if (m.includes("date=")) {
+            m = m.replace(/date=.*/, "date=" + d);
+        } else {
+            m += "\ndate=" + date.value + "\n";
+        }
+    }
+    
+    return m + ffmpegFormattedChapters.join("");
 });
 
 function id() {
@@ -85,13 +102,34 @@ export async function openFileDialog() {
 
 export async function loadFile(file: string) {
     let metadataOutput = await cmd("ffmpeg", ["-i", file, "-f", "ffmetadata", "-"]);
+    const fileName = await basename(file, ".mp4");
 
     batch(() => {
         metadataRaw.value = metadataOutput.stdout;
         metadata.value = stripChaptersFromFFMpegMetadata(metadataOutput.stdout);
         currentPath.value = file;
+        videoTitle.value = getVideoTitle(metadataOutput.stdout, fileName);
+        date.value = getDate(metadataOutput.stdout);
         chapters.value = parseChaptersFromFFMpegMetadata(metadataOutput.stdout);
     });
+}
+
+function getVideoTitle(metadata: string, fileName: string): string {
+    let title = metadata.match(/title=(.*)/);
+    if (title) {
+        return title[1];
+    }
+
+    return fileName;
+}
+
+function getDate(metadata: string): string {
+    let date = metadata.match(/date=(.*)/);
+    if (date) {
+        return date[1];
+    }
+
+    return new Date().toISOString().split("T")[0];
 }
 
 function stripChaptersFromFFMpegMetadata(metadata: string): string {

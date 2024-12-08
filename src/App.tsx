@@ -7,12 +7,14 @@ import {
     Chapter,
     chapters,
     currentPath,
+    date,
     debug,
     metadataRaw,
     newMetadata,
     path,
     sortedChapters,
     videoPlayer,
+    videoTitle,
 } from "./model";
 
 const expectedFramerate = 30;
@@ -38,7 +40,7 @@ export default function App() {
                 addChapterAtCurrentTime();
                 return;
             }
-            
+
             if (ev.key === "d") {
                 debug.value = !debug.value;
                 return;
@@ -72,10 +74,26 @@ export default function App() {
             <Sidebar video={videoPlayer} />
             <div aria-hidden="true" class="bg"></div>
             <main>
+                <div class="metadata">
+                    <input
+                        title={"Video title"}
+                        type="text"
+                        value={videoTitle.value}
+                        onInput={(e) => (videoTitle.value = e.currentTarget.value)}
+                    />
+                    <input
+                        type="date"
+                        title={"Capture date"}
+                        value={date.value}
+                        onInput={(e) => (date.value = e.currentTarget.value)}
+                    />
+                </div>
+
                 <div class="player">
                     <div title={"Current path: " + currentPath.value} class="current-path">
                         {currentPath.value}
                     </div>
+
                     <video ref={videoPlayer} src={path.value} controls></video>
                     <section class="controls">
                         {controlButtons.map(([text, d]) => (
